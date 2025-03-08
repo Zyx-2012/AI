@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GPT-2 聊天助手</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism-themes/1.9.0/prism-one-light.min.css" rel="stylesheet" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.10/clipboard.min.js"></script>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -209,6 +211,137 @@
             background: rgba(255, 255, 255, 0.1);
             color: #fff;
         }
+        /* 代码框样式 */
+        .code-container {
+            position: relative;
+            background: #fafafa;
+            border: 1px solid #e1e4e8;
+            border-radius: 6px;
+            padding: 16px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+
+        /* 复制按钮样式 */
+        .copy-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .copy-btn:hover {
+            background: #0056b3;
+        }
+
+        /* 代码高亮样式（使用 one-light 主题） */
+        pre code {
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 14px;
+            color: #383a42;
+            background: #fafafa;
+            display: block;
+            padding: 0;
+            margin: 0;
+        }
+
+        /* 代码关键字颜色 */
+        .token.keyword {
+            color: #a626a4;
+        }
+
+        .token.function {
+            color: #4078f2;
+        }
+
+        .token.string {
+            color: #50a14f;
+        }
+
+        .token.comment {
+            color: #a0a1a7;
+            font-style: italic;
+        }
+
+        .token.punctuation {
+            color: #383a42;
+        }
+
+        .token.operator {
+            color: #383a42;
+        }
+
+        .token.number {
+            color: #986801;
+        }
+
+        /* 代码框样式 */
+        .code-container {
+            position: relative;
+            background: #fafafa;
+            border: 1px solid #e1e4e8;
+            border-radius: 6px;
+            padding: 16px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+
+        /* 复制按钮样式 */
+        .copy-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .copy-btn:hover {
+            background: #0056b3;
+        }
+
+        /* 标题样式 */
+        h1, h2, h3, h4, h5, h6 {
+            margin: 10px 0;
+            font-weight: bold;
+            color: #333;
+        }
+
+        h1 {
+            font-size: 2em;
+        }
+
+        h2 {
+            font-size: 1.75em;
+        }
+
+        h3 {
+            font-size: 1.5em;
+        }
+
+        h4 {
+            font-size: 1.25em;
+        }
+
+        h5 {
+            font-size: 1em;
+        }
+
+        h6 {
+            font-size: 0.875em;
+        }
     </style>
 </head>
 <body>
@@ -231,12 +364,53 @@
     }, 50);
 
     function renderMarkdown(text) {
+        // 处理换行符：将 \n 转换为 <br> 或保留空行
+        text = text.replace(/\n/g, '<br>');
+
+        // 处理 Markdown 格式
         return text
             .replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
-                return `<pre><button class="copy-btn" data-clipboard-text="${encodeURIComponent(code)}">复制</button><code class="language-${lang || ''}">${code}</code></pre>`;
+                // 添加代码框和复制按钮
+                return `
+                <div class="code-container">
+                    <button class="copy-btn" data-clipboard-text="${encodeURIComponent(code)}">复制</button>
+                    <pre class="language-${lang || ''}"><code class="language-${lang || ''}">${code}</code></pre>
+                </div>
+            `;
             })
-            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-            .replace(/\*(.*?)\*/g, '<em>$1</em>');
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // 加粗
+            .replace(/\*(.*?)\*/g, '<em>$1</em>') // 斜体
+            .replace(/`(.*?)`/g, '<code>$1</code>') // 行内代码
+            .replace(/^###### (.*$)/gm, '<h6>$1</h6>') // 六级标题
+            .replace(/^##### (.*$)/gm, '<h5>$1</h5>') // 五级标题
+            .replace(/^#### (.*$)/gm, '<h4>$1</h4>') // 四级标题
+            .replace(/^### (.*$)/gm, '<h3>$1</h3>') // 三级标题
+            .replace(/^## (.*$)/gm, '<h2>$1</h2>') // 二级标题
+            .replace(/^# (.*$)/gm, '<h1>$1</h1>') // 一级标题
+            .replace(/^- (.*$)/gm, '<li>$1</li>') // 无序列表
+            .replace(/^\d+\. (.*$)/gm, '<li>$1</li>') // 有序列表
+            .replace(/^> (.*$)/gm, '<blockquote>$1</blockquote>') // 引用
+            .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2">$1</a>') // 链接
+            .replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1">') // 图片
+            .replace(/\|(.*)\|/g, (match, content) => {
+                // 表格
+                const rows = content.split('\n').filter(row => row.trim() !== '');
+                let tableHtml = '<table>';
+                rows.forEach((row, index) => {
+                    const cells = row.split('|').map(cell => cell.trim());
+                    if (index === 0) {
+                        tableHtml += '<thead><tr>';
+                        cells.forEach(cell => tableHtml += `<th>${cell}</th>`);
+                        tableHtml += '</tr></thead><tbody>';
+                    } else {
+                        tableHtml += '<tr>';
+                        cells.forEach(cell => tableHtml += `<td>${cell}</td>`);
+                        tableHtml += '</tr>';
+                    }
+                });
+                tableHtml += '</tbody></table>';
+                return tableHtml;
+            });
     }
 
     async function sendMessage() {
@@ -256,6 +430,7 @@
         chatBox.scrollTop = chatBox.scrollHeight;
 
         try {
+            // 调用后端接口
             const response = await fetch('/chat', {
                 method: 'POST',
                 headers: {
@@ -268,17 +443,41 @@
             });
 
             const data = await response.json();
-            chatHistory += `\nUser: ${message}\nAI: ${data.response}`;
+            const responseText = data.response;
 
+            // 更新聊天历史
+            chatHistory += `\nUser: ${message}\nAI: ${responseText}`;
+
+            // 移除加载动画并显示AI回复
             loadingMsg.remove();
-            chatBox.innerHTML += `<div class="ai-msg">🤖 ${renderMarkdown(data.response)}</div>`;
+            chatBox.innerHTML += `<div class="ai-msg">🤖 ${renderMarkdown(responseText)}</div>`;
             chatBox.scrollTop = chatBox.scrollHeight;
 
-            new ClipboardJS('.copy-btn', {
+            // 初始化复制按钮
+            const clipboard = new ClipboardJS('.copy-btn', {
                 text: function(trigger) {
                     return decodeURIComponent(trigger.getAttribute('data-clipboard-text'));
                 }
             });
+
+            // 复制成功后的提示
+            clipboard.on('success', function(e) {
+                e.trigger.textContent = '已复制';
+                setTimeout(() => {
+                    e.trigger.textContent = '复制';
+                }, 2000);
+            });
+
+            // 复制失败后的提示
+            clipboard.on('error', function(e) {
+                e.trigger.textContent = '复制失败';
+                setTimeout(() => {
+                    e.trigger.textContent = '复制';
+                }, 2000);
+            });
+
+            // 应用语法高亮
+            Prism.highlightAll();
         } catch (error) {
             console.error('Error:', error);
             loadingMsg.innerHTML = '🤖 <span class="error">出错了，请稍后重试。</span>';
