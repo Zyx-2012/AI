@@ -25,6 +25,7 @@ def start_ollama_server():
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL
     )
+    time.sleep(5)  # 等待服务器启动
     return server_process
 
 
