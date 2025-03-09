@@ -1,7 +1,0 @@
-AI/
-├── app.py                # 主程序
-├── templates/
-│   └── chat.html         # 聊天界面
-└── static/
-    ├── style.css         # 样式表
-    └── script.js        # 交互脚本
