@@ -4,11 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GPT-2 聊天助手</title>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism-themes/1.9.0/prism-one-light.min.css" rel="stylesheet" />
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.2.12/marked.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism-themes/1.9.0/prism-one-light.min.css" rel="stylesheet"/>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.10/clipboard.min.js"></script>
-    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
-    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -38,9 +36,15 @@
         }
 
         @keyframes gradientBG {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
+            0% {
+                background-position: 0% 50%;
+            }
+            50% {
+                background-position: 100% 50%;
+            }
+            100% {
+                background-position: 0% 50%;
+            }
         }
 
         .chat-container {
@@ -214,6 +218,7 @@
             background: rgba(255, 255, 255, 0.1);
             color: #fff;
         }
+
         /* 代码框样式 */
         .code-container {
             position: relative;
@@ -345,184 +350,219 @@
         h6 {
             font-size: 0.875em;
         }
-        
-        .auto-scroll {
-            scroll-behavior: smooth;
+
+        code {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-family: 'Consolas', monospace;
+            color: #ff8c00;
+        }
+
+        /* 深色模式适配 */
+        .code-container code {
+            background: #fafafa;
+            color: #383a42;
         }
     </style>
 </head>
 <body>
 <div class="chat-container">
-    <div id="chat-box" class="auto-scroll"></div>
+    <div id="chat-box"></div>
     <div class="input-group">
-        <textarea id="user-input" placeholder="输入消息..." autofocus></textarea>
-        <button id="send-btn" onclick="sendMessage()">发送</button>
+        <textarea id="user-input" placeholder="输入消息..."></textarea>
+        <button onclick="sendMessage()">发送</button>
     </div>
-    <button class="clear-btn" onclick="confirmClearChat()">删除聊天记录</button>
+    <button class="clear-history-btn" onclick="clearHistory()">删除历史记录</button>
 </div>
 <script>
-    const renderer = new marked.Renderer();
     let chatHistory = "";
     let isWaitingForAI = false;
 
-    // 配置 marked.js：仅代码块手动渲染
-    renderer.code = (code, language) => {
-        const highlighted = Prism.highlight(code, Prism.languages[language] || Prism.languages.autoit, language);
+    // 禁用发送按钮的样式
+    const disableSendButton = () => {
+        const sendBtn = document.querySelector('button[onclick="sendMessage()"]');
+        sendBtn.disabled = true;
+        sendBtn.style.background = 'linear-gradient(135deg, #999, #666)';
+        sendBtn.style.cursor = 'not-allowed';
+    };
+
+    // 启用发送按钮的样式
+    const enableSendButton = () => {
+        const sendBtn = document.querySelector('button[onclick="sendMessage()"]');
+        sendBtn.disabled = false;
+        sendBtn.style.background = 'linear-gradient(135deg, #ff0080, #ff8c00)';
+        sendBtn.style.cursor = 'pointer';
+    };
+
+    // 处理回车键
+    document.getElementById('user-input').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            if (!isWaitingForAI) {
+                e.preventDefault(); // 阻止默认行为（提交表单）
+                sendMessage(); // 发送消息
+            } else {
+                // 在AI回复前，回车键变为换行
+                e.preventDefault();
+                const input = document.getElementById('user-input');
+                const start = input.selectionStart;
+                const end = input.selectionEnd;
+                input.value = input.value.substring(0, start) + '\n' + input.value.substring(end);
+                input.selectionStart = input.selectionEnd = start + 1;
+            }
+        }
+    });
+
+    const body = document.body;
+    let hue = 0;
+    setInterval(() => {
+        hue = (hue + 1) % 360;
+        body.style.backgroundColor = `hsl(${hue}, 50%, 10%)`;
+    }, 50);
+
+    // 自定义代码块渲染
+    function renderCodeBlock(code, lang) {
         return `
             <div class="code-container">
                 <button class="copy-btn" data-clipboard-text="${encodeURIComponent(code)}">复制</button>
-                <pre><code class="language-${language}">${highlighted}</code></pre>
+                <pre class="language-${lang || ''}"><code class="language-${lang || ''}">${code}</code></pre>
             </div>
         `;
-    };
-
-    marked.setOptions({
-        renderer,
-        breaks: true,
-        highlight: () => {} // 禁用 marked 自带的代码高亮
-    });
-
-    // 增强型自动滚动
-    function autoScroll(container) {
-        const isBottom = container.scrollHeight - container.clientHeight <= container.scrollTop + 10;
-        if (!isBottom) {
-            container.scrollTop = container.scrollHeight;
-            requestAnimationFrame(() => autoScroll(container));
-        }
     }
 
-    // 打字效果
-    async function typeText(element, text, speed = 30) {
-        const rawMarkdown = text;
-        let processedMarkdown = '';
+    // 使用 marked 渲染 Markdown，同时手动处理代码块
+    function renderMarkdown(text) {
+        // 使用 marked 的 lexer 解析 Markdown
+        const tokens = marked.lexer(text);
 
-        // 分阶段处理内容
-        const segments = rawMarkdown.split(/(```[\s\S]*?```)/g);
-
-        for (const segment of segments) {
-            if (segment.startsWith('```')) {
-                // 代码块直接渲染
-                const codeContent = segment.slice(3, -3).trim();
-                const langMatch = codeContent.match(/^(\w+)\n/);
-                const language = langMatch ? langMatch[1] : '';
-                const code = langMatch ? codeContent.slice(langMatch[0].length) : codeContent;
-
-                processedMarkdown += renderer.code(code, language);
+        let html = '';
+        tokens.forEach(token => {
+            if (token.type === 'code') {
+                // 手动处理代码块
+                html += renderCodeBlock(token.text, token.lang);
             } else {
-                // 普通文本使用 marked 渲染
-                processedMarkdown += await new Promise(resolve => {
-                    marked.parse(segment, { async: true }, (err, result) => resolve(result));
-                });
+                // 使用 marked 的 parser 处理其他 Markdown 内容
+                html += marked.parser([token]);
             }
+        });
 
-            element.innerHTML = processedMarkdown;
-            autoScroll(document.getElementById('chat-box'));
-            await new Promise(r => setTimeout(r, speed));
-        }
+        return html;
     }
 
-    // 发送消息
     async function sendMessage() {
         const input = document.getElementById('user-input');
-        const sendBtn = document.getElementById('send-btn');
         const message = input.value.trim();
         if (!message || isWaitingForAI) return;
 
+        // 清空输入框（立即反馈）
+        input.value = '';
+
         const chatBox = document.getElementById('chat-box');
-
-        // 添加用户消息
         chatBox.innerHTML += `<div class="user-msg">👤 ${message}</div>`;
-        autoScroll(chatBox);
+        chatBox.scrollTop = chatBox.scrollHeight;
 
-        // 添加加载状态
+        // 显示加载动画
         const loadingMsg = document.createElement('div');
         loadingMsg.className = 'ai-msg';
-        loadingMsg.innerHTML = '🤖 正在生成回复...';
+        loadingMsg.innerHTML = '🤖 <span class="loading">思考中...</span>';
         chatBox.appendChild(loadingMsg);
-        autoScroll(chatBox);
+        chatBox.scrollTop = chatBox.scrollHeight;
 
+        // 锁定状态
         isWaitingForAI = true;
-        input.disabled = true;
-        sendBtn.disabled = true;
-
-        // 发送按钮动画
-        sendBtn.style.animation = 'float 0.5s ease-in-out';
+        disableSendButton(); // 禁用发送按钮
 
         try {
-            let response;
-
-            // 正常请求
-            response = await fetch('/chat', {
+            // 调用后端接口
+            const response = await fetch('/chat', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
                 body: new URLSearchParams({
                     message: message,
                     history: chatHistory
                 })
             });
-            response = await response.json();
 
-            chatHistory += `\nUser: ${message}\nAI: ${response.response}`;
-            chatBox.removeChild(loadingMsg);
+            const data = await response.json();
+            let responseText = data.response;
 
-            const aiMsg = document.createElement('div');
-            aiMsg.className = 'ai-msg';
-            chatBox.appendChild(aiMsg);
-            await typeText(aiMsg, response.response); // 打字效果
+            // 处理返回的字符串，移除 </think></think> 及其内容
+            responseText = responseText.replace(/<\/think>.*?<\/think>/gs, '');
 
+            // 更新聊天历史
+            chatHistory += `\nUser: ${message}\nAI: ${responseText}`;
+
+            // 移除加载动画并显示AI回复
+            loadingMsg.remove();
+            chatBox.innerHTML += `<div class="ai-msg">🤖 ${renderMarkdown(responseText)}</div>`;
             chatBox.scrollTop = chatBox.scrollHeight;
 
             // 初始化复制按钮
-            new ClipboardJS('.copy-btn', {
-                text: trigger => decodeURIComponent(trigger.dataset.clipboardText)
-            }).on('success', (e) => {
+            const clipboard = new ClipboardJS('.copy-btn', {
+                text: function (trigger) {
+                    return decodeURIComponent(trigger.getAttribute('data-clipboard-text'));
+                }
+            });
+
+            // 复制成功后的提示
+            clipboard.on('success', function (e) {
                 e.trigger.textContent = '已复制';
-                e.trigger.classList.add('copied');
                 setTimeout(() => {
                     e.trigger.textContent = '复制';
-                    e.trigger.classList.remove('copied');
                 }, 2000);
             });
 
+            // 复制失败后的提示
+            clipboard.on('error', function (e) {
+                e.trigger.textContent = '复制失败';
+                setTimeout(() => {
+                    e.trigger.textContent = '复制';
+                }, 2000);
+            });
+
+            // 应用语法高亮
             Prism.highlightAll();
-            MathJax.typeset();
         } catch (error) {
-            console.error('请求失败:', error);
-            loadingMsg.innerHTML = '🤖 服务暂时不可用，请稍后重试';
+            console.error('Error:', error);
+            loadingMsg.innerHTML = '🤖 <span class="error">出错了，请稍后重试。</span>';
         } finally {
+            // 解除状态锁定
             isWaitingForAI = false;
-            input.disabled = false;
-            sendBtn.disabled = false;
-            input.focus(); // 重新聚焦输入框
-            sendBtn.style.animation = ''; // 清除按钮动画
-        }
-        input.value = '';
-    }
-
-    // 删除聊天记录
-    function confirmClearChat() {
-        const isConfirmed = confirm("确定要删除所有聊天记录吗？");
-        if (isConfirmed) {
-            clearChat();
+            enableSendButton(); // 启用发送按钮
         }
     }
 
-    function clearChat() {
+    function clearHistory() {
         const chatBox = document.getElementById('chat-box');
         chatBox.innerHTML = '';
         chatHistory = "";
     }
 
-    // 监听回车键
-    document.getElementById('user-input').addEventListener('keydown', e => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            sendMessage();
-        }
-    });
-
-    // 页面加载后自动聚焦输入框
-    document.getElementById('user-input').focus();
+    const style = document.createElement('style');
+    style.innerHTML = `
+    .loading::after {
+        content: '';
+        display: inline-block;
+        width: 1em;
+        height: 1em;
+        border: 2px solid #fff;
+        border-radius: 50%;
+        border-top-color: transparent;
+        animation: spin 1s linear infinite;
+        margin-left: 0.5em;
+    }
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    .error {
+        color: #ff4444;
+    }
+`;
+    document.head.appendChild(style);
 </script>
 </body>
 </html>
