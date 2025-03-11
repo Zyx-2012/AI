@@ -432,6 +432,7 @@
     }
 
     // 使用 marked 渲染 Markdown，同时手动处理代码块
+    // 使用 marked 渲染 Markdown，同时手动处理代码块和内联代码
     function renderMarkdown(text) {
         // 使用 marked 的 lexer 解析 Markdown
         const tokens = marked.lexer(text);
@@ -441,6 +442,12 @@
             if (token.type === 'code') {
                 // 手动处理代码块
                 html += renderCodeBlock(token.text, token.lang);
+            } else if (token.type === 'paragraph') {
+                // 处理段落中的内联代码
+                let paragraphText = token.text;
+                // 使用正则表达式匹配内联代码
+                paragraphText = paragraphText.replace(/`([^`]+)`/g, '<code>$1</code>');
+                html += `<p>${paragraphText}</p>`;
             } else {
                 // 使用 marked 的 parser 处理其他 Markdown 内容
                 html += marked.parser([token]);
@@ -490,7 +497,7 @@
             let responseText = data.response;
 
             // 处理返回的字符串，移除 </think></think> 及其内容
-            responseText = responseText.replace(/<\/think>.*?<\/think>/gs, '');
+            responseText = responseText.replace(/<think>.*?<\/think>/gs, '');
 
             // 更新聊天历史
             chatHistory += `\nUser: ${message}\nAI: ${responseText}`;
