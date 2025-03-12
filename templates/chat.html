@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>模拟环境</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* 自定义滚动条样式 */
+    #response-output::-webkit-scrollbar {
+      width: 8px;
+    }
+    #response-output::-webkit-scrollbar-track {
+      background: #f1f1f1;
+    }
+    #response-output::-webkit-scrollbar-thumb {
+      background: #888;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="bg-gray-100">
+  <div class="flex flex-col h-screen">
+    <div class="flex-grow flex items-center justify-center p-4">
+      <div class="w-full max-w-3xl h-full flex flex-col">
+        <!-- 初始提示信息 -->
+        <div id="prompt-message" class="flex-grow flex items-center justify-center text-gray-500 text-center">
+          <div>
+            <div class="text-lg">随便问一个问题，我才会消失～</div>
+          </div>
+        </div>
+        
+        <!-- 响应输出区域 -->
+        <div id="response-output" 
+             class="hidden flex-grow bg-white rounded-lg shadow p-4 overflow-auto text-gray-800"
+             style="min-height: 150px;"></div>
+      </div>
+    </div>
+
+    <!-- 输入区域 -->
+    <div class="p-4 bg-white border-t">
+      <div class="max-w-3xl mx-auto flex items-center gap-2">
+        <input type="text"
+               placeholder="输入你的问题..."
+               class="flex-grow px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+               id="question-input">
+        <button onclick="sendQuestion()"
+                class="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                id="send-button">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    async function sendQuestion() {
+      const input = document.getElementById('question-input');
+      const button = document.getElementById('send-button');
+      const promptMessage = document.getElementById('prompt-message');
+      const outputDiv = document.getElementById('response-output');
+      const question = input.value.trim();
+
+      if (!question) return;
+
+      try {
+        // 禁用输入和按钮
+        input.disabled = true;
+        button.disabled = true;
+        button.classList.add('opacity-50');
+        
+        // 初始化界面
+        promptMessage.classList.add('hidden');
+        outputDiv.classList.remove('hidden');
+        outputDiv.textContent = '';
+
+        // 发送请求
+        const response = await fetch('http://localhost:11434/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'deepseek-r1:1.5b',
+            prompt: question,
+            stream: true
+          })
+        });
+
+        if (!response.ok) throw new Error(`请求失败: ${response.status}`);
+
+        // 处理流式数据
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          
+          for (let i = 0; i < lines.length - 1; i++) {
+            const line = lines[i].trim();
+            if (!line) continue;
+
+            try {
+              const { response: text } = JSON.parse(line);
+              outputDiv.textContent += text;
+              // 自动滚动到底部
+              outputDiv.scrollTop = outputDiv.scrollHeight;
+            } catch (e) {
+              console.error('解析错误:', e);
+            }
+          }
+          buffer = lines[lines.length - 1];
+        }
+
+        // 处理剩余数据
+        if (buffer.trim()) {
+          try {
+            const { response: text } = JSON.parse(buffer.trim());
+            outputDiv.textContent += text;
+          } catch (e) {
+            console.error('解析剩余数据错误:', e);
+          }
+        }
+
+        input.value = '';
+      } catch (error) {
+        console.error('请求出错:', error);
+        outputDiv.textContent = `错误: ${error.message}`;
+      } finally {
+        input.disabled = false;
+        button.disabled = false;
+        button.classList.remove('opacity-50');
+        input.focus();
+      }
+    }
+
+    // 添加回车键支持
+    document.getElementById('question-input').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendQuestion();
+    });
+  </script>
+</body>
+</html>

@@ -23,6 +23,6 @@ for line in response.iter_lines():
         except json.JSONDecodeError:
             print(f"无法解析的 JSON 数据: {line.decode('utf-8')}")
 time.sleep(5)
-print("测试完毕,准备关闭服务")
-controller.stop_server()
-print("停止后状态:", "运行中" if controller.check_health() else "已停止")
+print("\n测试完毕,准备关闭服务")
+#controller.stop_server()
+#print("停止后状态:", "运行中" if controller.check_health() else "已停止")

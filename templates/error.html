@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>请启动客户端</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: "Microsoft YaHei", sans-serif;
+      background: #3c1153;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+    .c {
+      text-align: center;
+      opacity: 0;
+      transition: opacity 0.8s;
+    }
+    .i {
+      font-size: 5rem;
+      margin-bottom: 1rem;
+    }
+    .t {
+      font-size: 1.8rem;
+      margin-bottom: 0.5rem;
+    }
+    .s {
+      font-size: 1rem;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <div class="c" id="c">
+    <div class="i">⚠️</div>
+    <div class="t">请启动客户端</div>
+    <div class="s">额...好像走丢了<br>你要的页面可能被熊吃掉了~</div>
+  </div>
+  <script>
+    let c = document.getElementById("c")
+    window.onload = function() {
+      c.style.opacity = 1
+    }
+  </script>
+</body>
+</html>

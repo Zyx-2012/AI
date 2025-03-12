@@ -96,6 +96,3 @@ if __name__ == "__main__":
         print("当前状态:", "运行中" if controller.check_health() else "异常")
         print("\n最近日志:")
         print("\n".join(controller.get_logs()))
-        #time.sleep(2)
-        #controller.stop_server()
-        #print("停止后状态:", "运行中" if controller.check_health() else "已停止")
