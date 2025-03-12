@@ -1,0 +1,1 @@
+.\python39\python.exe main.py

@@ -1,103 +1,101 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
 import subprocess
 import os
 import time
 import requests
 import threading
+from queue import Queue, Empty
+class OllamaController:
+    def __init__(self):
+        self.server_path = "./ollama/ollama.exe"
+        self.models_dir = os.path.abspath("models")
+        self.base_url = "http://127.0.0.1:11434"
+        self.process = None
+        self.lock = threading.Lock()
+        self.log_queue = Queue()
+        if not os.path.exists(self.server_path):
+            raise FileNotFoundError(f"Ollama executable not found at {self.server_path}")
+    def start_server(self, timeout=10):
+        with self.lock:
+            if self.is_running():
+                print("服务已在运行中")
+                return False
 
-app = Flask(__name__)
-CORS(app)  # 允许跨域请求
+            env = os.environ.copy()
+            env["OLLAMA_MODELS"] = self.models_dir
+            
+            try:
+                self.process = subprocess.Popen(
+                    [self.server_path, "serve"],
+                    env=env,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1,
+                    universal_newlines=True
+                )
+            except Exception as e:
+                print(f"启动失败: {str(e)}")
+                return False
+            threading.Thread(
+                target=self._capture_output,
+                daemon=True
+            ).start()
+            start_time = time.time()
+            while time.time() - start_time < timeout:
+                if self.check_health():
+                    print("服务启动成功")
+                    return True
+                time.sleep(1)
+            print("服务启动超时")
+            return False
 
-# 配置项
-OLLAMA_SERVER_PATH = "./ollama/ollama.exe"
-MODELS_DIR = os.path.abspath("models")
-OLLAMA_URL = "http://localhost:11434"
-
-
-# 启动Ollama服务器
-def start_ollama_server():
-    env = os.environ.copy()
-    env["OLLAMA_MODELS"] = MODELS_DIR
-    server_process = subprocess.Popen(
-        [OLLAMA_SERVER_PATH, "serve"],
-        env=env,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL
-    )
-    time.sleep(5)  # 等待服务器启动
-    return server_process
-
-
-# 全局变量保存服务器进程
-server_process = start_ollama_server()
-
-
-@app.route('/api/models', methods=['GET'])
-def get_models():
-    """获取可用模型列表"""
-    try:
-        response = requests.get(f"{OLLAMA_URL}/api/tags")
-        return jsonify(response.json())
-    except requests.exceptions.ConnectionError:
-        return jsonify({"error": "无法连接到Ollama服务器"}), 500
-
-
-@app.route('/api/generate', methods=['POST'])
-def generate_response():
-    """生成对话响应"""
-    data = request.json
-    required_fields = ['model', 'prompt']
-
-    # 验证必要字段
-    if not all(field in data for field in required_fields):
-        return jsonify({"error": "缺少必要字段: model 或 prompt"}), 400
-
-    payload = {
-        "model": data['model'],
-        "prompt": data['prompt'],
-        "stream": data.get('stream', False),
-        "options": data.get('options', {})
-    }
-
-    try:
-        response = requests.post(f"{OLLAMA_URL}/api/generate", json=payload)
-        return jsonify(response.json())
-    except requests.exceptions.ConnectionError:
-        return jsonify({"error": "无法连接到Ollama服务"}), 500
-
-
-@app.route('/api/health', methods=['GET'])
-def health_check():
-    """健康检查端点"""
-    try:
-        requests.get(f"{OLLAMA_URL}/api/tags", timeout=2)
-        return jsonify({"status": "healthy"})
-    except:
-        return jsonify({"status": "unhealthy"}), 500
-
-
-def shutdown_server():
-    """关闭服务器时清理Ollama进程"""
-    server_process.terminate()
-
-
-@app.teardown_appcontext
-def teardown(exception=None):
-    shutdown_server()
-
-
-if __name__ == '__main__':
-    # 等待服务器启动
-    time.sleep(2)
-
-    # 在独立线程运行Flask应用
-    threading.Thread(target=app.run, kwargs={'port': 5001}).start()
-
-    try:
+    def _capture_output(self):
         while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        shutdown_server()
-def run():
-    threading.Thread(target=app.run, kwargs={'port': 5001}).start()
+            line = self.process.stdout.readline()
+            if not line and self.process.poll() is not None:
+                break
+            self.log_queue.put(line.strip())
+
+    def stop_server(self, force_kill=False):
+        with self.lock:
+            if not self.is_running():
+                print("服务未运行")
+                return False
+
+            try:
+                self.process.terminate()
+                try:
+                    self.process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    if force_kill:
+                        self.process.kill()
+                        self.process.wait()
+                return True
+            except Exception as e:
+                print(f"停止失败: {str(e)}")
+                return False
+
+    def is_running(self):
+        return self.process and self.process.poll() is None
+
+    def check_health(self):
+        try:
+            resp = requests.get(f"{self.base_url}/", timeout=2)
+            return resp.status_code == 200
+        except:
+            return False
+
+    def get_logs(self, max_lines=100):
+        logs = []
+        while not self.log_queue.empty() and len(logs) < max_lines:
+            logs.append(self.log_queue.get())
+        return logs[::-1] 
+if __name__ == "__main__":
+    controller = OllamaController()
+    if controller.start_server():
+        print("当前状态:", "运行中" if controller.check_health() else "异常")
+        print("\n最近日志:")
+        print("\n".join(controller.get_logs()))
+        #time.sleep(2)
+        #controller.stop_server()
+        #print("停止后状态:", "运行中" if controller.check_health() else "已停止")
