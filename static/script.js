@@ -1,6 +1,40 @@
 let chatHistory = "";
+let isWaitingForAI = false;
 
-// 动态背景颜色变化
+// 禁用发送按钮的样式
+const disableSendButton = () => {
+    const sendBtn = document.querySelector('button[onclick="sendMessage()"]');
+    sendBtn.disabled = true;
+    sendBtn.style.background = 'linear-gradient(135deg, #999, #666)';
+    sendBtn.style.cursor = 'not-allowed';
+};
+
+// 启用发送按钮的样式
+const enableSendButton = () => {
+    const sendBtn = document.querySelector('button[onclick="sendMessage()"]');
+    sendBtn.disabled = false;
+    sendBtn.style.background = 'linear-gradient(135deg, #ff0080, #ff8c00)';
+    sendBtn.style.cursor = 'pointer';
+};
+
+// 处理回车键
+document.getElementById('user-input').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        if (!isWaitingForAI) {
+            e.preventDefault(); // 阻止默认行为（提交表单）
+            sendMessage(); // 发送消息
+        } else {
+            // 在AI回复前，回车键变为换行
+            e.preventDefault();
+            const input = document.getElementById('user-input');
+            const start = input.selectionStart;
+            const end = input.selectionEnd;
+            input.value = input.value.substring(0, start) + '\n' + input.value.substring(end);
+            input.selectionStart = input.selectionEnd = start + 1;
+        }
+    }
+});
+
 const body = document.body;
 let hue = 0;
 setInterval(() => {
@@ -8,21 +42,49 @@ setInterval(() => {
     body.style.backgroundColor = `hsl(${hue}, 50%, 10%)`;
 }, 50);
 
-// 渲染 Markdown 内容
-function renderMarkdown(text) {
-    return text
-        .replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
-            return `<pre><button class="copy-btn" data-clipboard-text="${encodeURIComponent(code)}">复制</button><code class="language-${lang || ''}">${code}</code></pre>`;
-        })
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')  // 加粗
-        .replace(/\*(.*?)\*/g, '<em>$1</em>');  // 斜体
+// 自定义代码块渲染
+function renderCodeBlock(code, lang) {
+    return `
+            <div class="code-container">
+                <button class="copy-btn" data-clipboard-text="${encodeURIComponent(code)}">复制</button>
+                <pre class="language-${lang || ''}"><code class="language-${lang || ''}">${code}</code></pre>
+            </div>
+        `;
 }
 
-// 发送消息
+// 使用 marked 渲染 Markdown，同时手动处理代码块
+// 使用 marked 渲染 Markdown，同时手动处理代码块和内联代码
+function renderMarkdown(text) {
+    // 使用 marked 的 lexer 解析 Markdown
+    const tokens = marked.lexer(text);
+
+    let html = '';
+    tokens.forEach(token => {
+        if (token.type === 'code') {
+            // 手动处理代码块
+            html += renderCodeBlock(token.text, token.lang);
+        } else if (token.type === 'paragraph') {
+            // 处理段落中的内联代码
+            let paragraphText = token.text;
+            // 使用正则表达式匹配内联代码
+            paragraphText = paragraphText.replace(/`([^`]+)`/g, '<code>$1</code>');
+            html += `<p>${paragraphText}</p>`;
+        } else {
+            // 使用 marked 的 parser 处理其他 Markdown 内容
+            html += marked.parser([token]);
+        }
+    });
+
+    return html;
+}
+
 async function sendMessage() {
     const input = document.getElementById('user-input');
     const message = input.value.trim();
-    if (!message) return;
+    if (!message || isWaitingForAI) return;
+
+    // 清空输入框（立即反馈）
+    input.value = '';
 
     const chatBox = document.getElementById('chat-box');
     chatBox.innerHTML += `<div class="user-msg">👤 ${message}</div>`;
@@ -35,7 +97,12 @@ async function sendMessage() {
     chatBox.appendChild(loadingMsg);
     chatBox.scrollTop = chatBox.scrollHeight;
 
+    // 锁定状态
+    isWaitingForAI = true;
+    disableSendButton(); // 禁用发送按钮
+
     try {
+        // 调用后端接口
         const response = await fetch('/chat', {
             method: 'POST',
             headers: {
@@ -48,28 +115,60 @@ async function sendMessage() {
         });
 
         const data = await response.json();
-        chatHistory += `\nUser: ${message}\nAI: ${data.response}`;
+        let responseText = data.response;
 
-        // 移除加载动画，显示 AI 回复
+        // 处理返回的字符串，移除 </think></think> 及其内容
+        responseText = responseText.replace(/<think>.*?<\/think>/gs, '');
+
+        // 更新聊天历史
+        chatHistory += `\nUser: ${message}\nAI: ${responseText}`;
+
+        // 移除加载动画并显示AI回复
         loadingMsg.remove();
-        chatBox.innerHTML += `<div class="ai-msg">🤖 ${renderMarkdown(data.response)}</div>`;
+        chatBox.innerHTML += `<div class="ai-msg">🤖 ${renderMarkdown(responseText)}</div>`;
         chatBox.scrollTop = chatBox.scrollHeight;
 
         // 初始化复制按钮
-        new ClipboardJS('.copy-btn', {
-            text: function(trigger) {
+        const clipboard = new ClipboardJS('.copy-btn', {
+            text: function (trigger) {
                 return decodeURIComponent(trigger.getAttribute('data-clipboard-text'));
             }
         });
+
+        // 复制成功后的提示
+        clipboard.on('success', function (e) {
+            e.trigger.textContent = '已复制';
+            setTimeout(() => {
+                e.trigger.textContent = '复制';
+            }, 2000);
+        });
+
+        // 复制失败后的提示
+        clipboard.on('error', function (e) {
+            e.trigger.textContent = '复制失败';
+            setTimeout(() => {
+                e.trigger.textContent = '复制';
+            }, 2000);
+        });
+
+        // 应用语法高亮
+        Prism.highlightAll();
     } catch (error) {
         console.error('Error:', error);
         loadingMsg.innerHTML = '🤖 <span class="error">出错了，请稍后重试。</span>';
+    } finally {
+        // 解除状态锁定
+        isWaitingForAI = false;
+        enableSendButton(); // 启用发送按钮
     }
-
-    input.value = '';
 }
 
-// 加载动画样式
+function clearHistory() {
+    const chatBox = document.getElementById('chat-box');
+    chatBox.innerHTML = '';
+    chatHistory = "";
+}
+
 const style = document.createElement('style');
 style.innerHTML = `
     .loading::after {
