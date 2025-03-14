@@ -1,147 +1,270 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
-  <meta charset="UTF-8">
-  <title>模拟环境</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    /* 自定义滚动条样式 */
-    #response-output::-webkit-scrollbar {
-      width: 8px;
-    }
-    #response-output::-webkit-scrollbar-track {
-      background: #f1f1f1;
-    }
-    #response-output::-webkit-scrollbar-thumb {
-      background: #888;
-      border-radius: 4px;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <title>模拟环境</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/5.1.1/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.5/purify.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/github.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+    <style>
+        #response-output::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #response-output::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        #response-output::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+
+        #response-output pre code {
+            @apply bg-gray-100 px-2 py-1 rounded text-sm font-mono;
+        }
+
+        #response-output h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6 {
+            @apply font-bold my-2;
+        }
+
+        #response-output p {
+            @apply mb-4 leading-relaxed;
+        }
+
+        #response-output pre {
+            @apply bg-gray-100 rounded-lg p-4 my-4 overflow-x-auto;
+            position: relative;
+        }
+
+        #response-output blockquote {
+            @apply border-l-4 border-gray-300 pl-4 text-gray-600 my-4;
+        }
+
+        .think-box {
+            @apply bg-gray-100 border-l-4 border-blue-500 px-4 py-2 my-4 italic text-gray-600;
+        }
+
+        .code-block {
+            @apply relative bg-gray-100 rounded-lg p-4 my-4 overflow-x-auto;
+        }
+
+        .copy-button {
+            @apply absolute top-2 right-2 p-1 bg-white border rounded text-sm text-gray-600 hover:bg-gray-50;
+            border: 1px solid #6366f1;
+            box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.2);
+        }
+
+        .code-block:hover .copy-button {
+            @apply opacity-100;
+        }
+
+        .think {
+            position: relative;
+            padding-left: 30px;
+            margin: 10px 0;
+        }
+
+        .think::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 5px;
+            background-color: #ccc;
+            border-radius: 5px;
+        }
+
+        /* 新增版权页脚样式 */
+        .copyright-footer {
+            text-align: center;
+            color: #777;
+            font-size: 0.9rem;
+            padding: 10px;
+            background-color: rgba(255, 255, 255, 0.8);
+            border-top: 1px solid #e0e0e0;
+        }
+    </style>
 </head>
+
 <body class="bg-gray-100">
-  <div class="flex flex-col h-screen">
+<div class="flex flex-col h-screen">
     <div class="flex-grow flex items-center justify-center p-4">
-      <div class="w-full max-w-3xl h-full flex flex-col">
-        <!-- 初始提示信息 -->
-        <div id="prompt-message" class="flex-grow flex items-center justify-center text-gray-500 text-center">
-          <div>
-            <div class="text-lg">随便问一个问题，我才会消失～</div>
-          </div>
+        <div class="w-full max-w-3xl h-full flex flex-col">
+            <div id="prompt-message" class="flex-grow flex items-center justify-center text-gray-500 text-center">
+                <div>
+                    <div class="text-lg">随便问一个问题，我才会消失～</div>
+                </div>
+            </div>
+            <div id="response-output"
+                 class="hidden flex-grow bg-white rounded-lg shadow p-4 overflow-auto text-gray-800"
+                 style="min-height: 150px;"></div>
         </div>
-        
-        <!-- 响应输出区域 -->
-        <div id="response-output" 
-             class="hidden flex-grow bg-white rounded-lg shadow p-4 overflow-auto text-gray-800"
-             style="min-height: 150px;"></div>
-      </div>
     </div>
-
-    <!-- 输入区域 -->
     <div class="p-4 bg-white border-t">
-      <div class="max-w-3xl mx-auto flex items-center gap-2">
-        <input type="text"
-               placeholder="输入你的问题..."
-               class="flex-grow px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-               id="question-input">
-        <button onclick="sendQuestion()"
-                class="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-                id="send-button">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
-          </svg>
-        </button>
-      </div>
+        <div class="max-w-3xl mx-auto flex items-center gap-2">
+            <input type="text" placeholder="输入你的问题..."
+                   class="flex-grow px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                   id="question-input">
+            <button onclick="sendQuestion()"
+                    class="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                    id="send-button">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+                     stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                </svg>
+            </button>
+        </div>
     </div>
-  </div>
+    <!-- 新增版权页脚 -->
+    <div class="copyright-footer">
+        &copy; 2025 版权所有 · Ruibin_Ningh & Zyx-2012
+    </div>
+</div>
+<script>
+    const renderer = new marked.Renderer();
+    renderer.html = (html) => html;
+    marked.setOptions({
+        renderer,
+        breaks: true,
+        sanitize: false
+    });
 
-  <script>
-    async function sendQuestion() {
-      const input = document.getElementById('question-input');
-      const button = document.getElementById('send-button');
-      const promptMessage = document.getElementById('prompt-message');
-      const outputDiv = document.getElementById('response-output');
-      const question = input.value.trim();
+    DOMPurify.addHook('uponSanitizeElement', function (node, data) {
+        if (data.tagName === 'think') return false;
+    });
 
-      if (!question) return;
-
-      try {
-        // 禁用输入和按钮
-        input.disabled = true;
-        button.disabled = true;
-        button.classList.add('opacity-50');
-        
-        // 初始化界面
-        promptMessage.classList.add('hidden');
-        outputDiv.classList.remove('hidden');
-        outputDiv.textContent = '';
-
-        // 发送请求
-        const response = await fetch('http://localhost:11434/api/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: 'deepseek-r1:1.5b',
-            prompt: question,
-            stream: true
-          })
-        });
-
-        if (!response.ok) throw new Error(`请求失败: ${response.status}`);
-
-        // 处理流式数据
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          
-          for (let i = 0; i < lines.length - 1; i++) {
-            const line = lines[i].trim();
-            if (!line) continue;
-
-            try {
-              const { response: text } = JSON.parse(line);
-              outputDiv.textContent += text;
-              // 自动滚动到底部
-              outputDiv.scrollTop = outputDiv.scrollHeight;
-            } catch (e) {
-              console.error('解析错误:', e);
+    function addCopyButtons() {
+        document.querySelectorAll('#response-output pre').forEach(preBlock => {
+            if (!preBlock.querySelector('.copy-button')) {
+                const button = document.createElement('button');
+                button.className = 'copy-button';
+                button.textContent = '复制';
+                button.onclick = () => {
+                    const code = preBlock.querySelector('code').innerText;
+                    navigator.clipboard.writeText(code);
+                    button.textContent = '已复制!';
+                    setTimeout(() => button.textContent = '复制', 2000);
+                };
+                preBlock.appendChild(button);
             }
-          }
-          buffer = lines[lines.length - 1];
-        }
-
-        // 处理剩余数据
-        if (buffer.trim()) {
-          try {
-            const { response: text } = JSON.parse(buffer.trim());
-            outputDiv.textContent += text;
-          } catch (e) {
-            console.error('解析剩余数据错误:', e);
-          }
-        }
-
-        input.value = '';
-      } catch (error) {
-        console.error('请求出错:', error);
-        outputDiv.textContent = `错误: ${error.message}`;
-      } finally {
-        input.disabled = false;
-        button.disabled = false;
-        button.classList.remove('opacity-50');
-        input.focus();
-      }
+        });
     }
 
-    // 添加回车键支持
-    document.getElementById('question-input').addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') sendQuestion();
+    function processMarkdown(rawMarkdown, outputDiv) {
+        let dirty = marked.parse(rawMarkdown);
+        dirty = dirty.replace(/<think>/g, '<div class="think">').replace(/<\/think>/g, '</div>');
+        outputDiv.innerHTML = DOMPurify.sanitize(dirty);
+        addCopyButtons();
+        hljs.highlightAll();
+        outputDiv.scrollTop = outputDiv.scrollHeight;
+    }
+
+    let isWaitingForResponse = false;
+
+    async function sendQuestion() {
+        const input = document.getElementById('question-input');
+        const button = document.getElementById('send-button');
+        const promptMessage = document.getElementById('prompt-message');
+        const outputDiv = document.getElementById('response-output');
+        const question = input.value.trim();
+
+        if (!question || button.disabled) return;
+
+        isWaitingForResponse = true;
+        try {
+            button.disabled = true;
+            button.classList.add('opacity-50');
+            promptMessage.classList.add('hidden');
+            outputDiv.classList.remove('hidden');
+            outputDiv.textContent = '';
+
+            input.value = '';
+            input.focus();
+
+            const response = await fetch('http://localhost:11434/api/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model: 'deepseek-r1:1.5b',
+                    prompt: question,
+                    stream: true
+                })
+            });
+
+            if (!response.ok) throw new Error(`请求失败: ${response.status}`);
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '', rawMarkdown = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');('\n');
+
+                for (let i = 0; i < lines.length - 1; i++) {
+                    const line = lines[i].trim();
+                    if (!line) continue;
+
+                    try {
+                        const { response: text } = JSON.parse(line);
+                        rawMarkdown += text;
+                        processMarkdown(rawMarkdown, outputDiv);
+                    } catch (e) {
+                        console.error('解析错误:', e);
+                    }
+                }
+                buffer = lines[lines.length - 1];
+            }
+
+            if (buffer.trim()) {
+                try {
+                    const { response: text } = JSON.parse(buffer.trim());
+                    rawMarkdown += text;
+                    processMarkdown(rawMarkdown, outputDiv);
+                } catch (e) {
+                    console.error('解析剩余数据错误:', e);
+                }
+            }
+        } catch (error) {
+            console.error('请求出错:', error);
+            outputDiv.textContent = `错误: ${error.message}`;
+        } finally {
+            isWaitingForResponse = false;
+            button.disabled = false;
+            button.classList.remove('opacity-50');
+        }
+    }
+
+    document.getElementById('question-input').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            const input = document.getElementById('question-input');
+            if (isWaitingForResponse || e.shiftKey) {
+                const start = input.selectionStart;
+                const end = input.selectionEnd;
+                input.value = input.value.slice(0, start) + '\n' + input.value.slice(end);
+                input.selectionStart = input.selectionEnd = start + 1;
+                e.preventDefault();
+            } else {
+                sendQuestion();
+                e.preventDefault();
+            }
+        }
     });
-  </script>
+</script>
 </body>
+
 </html>
